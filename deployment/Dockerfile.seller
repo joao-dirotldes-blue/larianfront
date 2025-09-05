@@ -12,11 +12,33 @@ COPY package.json pnpm-lock.yaml ./
 # Install dependencies
 RUN pnpm install --frozen-lockfile
 
-# Copy vite config for seller
-COPY ../deployment/vite.config.seller.ts vite.config.ts
-
 # Copy source code
 COPY . .
+
+# Override vite config with seller-specific config
+RUN echo "import path from 'path';\n\
+import tailwindcss from '@tailwindcss/vite';\n\
+import react from '@vitejs/plugin-react-swc';\n\
+import { defineConfig } from 'vite';\n\
+\n\
+export default defineConfig(() => ({\n\
+  base: '/seller/',\n\
+  server: {\n\
+    host: '::',\n\
+    port: 8080,\n\
+  },\n\
+  plugins: [react(), tailwindcss()],\n\
+  resolve: {\n\
+    alias: {\n\
+      '@': path.resolve(__dirname, './src'),\n\
+    },\n\
+  },\n\
+  build: {\n\
+    outDir: 'dist',\n\
+    assetsDir: 'assets',\n\
+    emptyOutDir: true,\n\
+  },\n\
+}));" > vite.config.ts
 
 # Build the application with base path
 RUN pnpm run build
@@ -31,7 +53,7 @@ RUN apk add --no-cache curl
 COPY --from=builder /app/dist /usr/share/nginx/html/seller
 
 # Copy nginx configuration
-COPY ../deployment/nginx-seller.conf /etc/nginx/conf.d/default.conf
+COPY nginx-seller.conf /etc/nginx/conf.d/default.conf
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
